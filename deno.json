@@ -1,0 +1,8 @@
+{
+  "lock": true,
+  "imports": {
+    "unpdf": "npm:unpdf@0.12.1",
+    "zod": "npm:zod@4",
+    "@std/encoding": "jsr:@std/encoding@1.0.11"
+  }
+}

@@ -1,0 +1,86 @@
+manifestVersion: 1
+name: "@shrug/hetzner-invoice"
+version: "2026.11.10.1"
+description: |
+  Turn Hetzner invoice PDFs into structured per-project spend data, surface it
+  as a finops cost report, and emit per-project Invoice Ninja expense candidates
+  written through the already-gated `@shrug/invoiceninja.upsertExpenses`
+  money-write.
+
+  The core parse/model/report/candidate path is SOURCE-AGNOSTIC via a pluggable
+  `InvoiceSource` adapter: `FileSource` (local path) and `BytesSource` (inline
+  base64) ship now, so the whole core is usable with no IMAP. An `ImapSource`
+  adapter is declared against the interface but GATED on pub-4
+  (`@shrug/imap.fetchAttachment`, which does not exist yet) -- it throws a clear
+  error until that method lands.
+
+  ## Methods
+
+  - **parseInvoice** -- parse PDF bytes (inline base64 `bytesBase64`, a
+    `filePath`, or a resolved source) into the `invoices` resource: invoice
+    number, customer id, date, billing period, detected ISO currency, per-project
+    subtotals, and net/VAT/total figures. Uses a bundled pure-JS PDF text
+    extractor (no OCR -- Hetzner invoices carry a real text layer) plus an
+    anchor-based parser.
+  - **ingestFile** -- parse a local PDF (`FileSource`) into `invoices`.
+  - **buildExpenseCandidates** -- build ONE BankTxn-shaped candidate PER PROJECT
+    (never a lump) plus the Mapping, from parsed invoice(s) passed via CEL.
+    Writes the `expenseCandidates` resource; NEVER POSTs. Feed its
+    candidates + mapping to `@shrug/invoiceninja.upsertExpenses`.
+
+  ## USD-only expense sync (scope)
+
+  Expense sync is USD-ONLY. Invoice Ninja's `isCandidate` gate SILENTLY drops any
+  non-USD row, so `buildExpenseCandidates` runs a pre-write guard that THROWS
+  loudly on any detected non-USD currency AND on a mixed-currency batch -- a
+  visible failure rather than a silent zero-write. Run backfills PER CURRENCY.
+  Non-USD invoices are still VISIBLE as spend in the read-only `hetzner-spend`
+  report; only their expense sync is out of scope until `isCandidate` is extended.
+
+  ## Tenant attribution
+
+  A project named in `projectClientMap` is a passthrough (re-billed) line: its
+  candidate carries `clientId`, so the `@shrug/invoiceninja` `mapTxnToExpense`
+  passthrough writes `client_id`. Projects NOT in the map are Shrug-own opex and
+  carry no `clientId`. Per-project lines are always separate.
+
+  ## Writes
+
+  This model NEVER POSTs. The single audited money-write stays
+  `@shrug/invoiceninja.upsertExpenses` (dryRun default true); a live expense POST
+  needs that model's explicit `dryRun=false` plus a per-action sign-off. This
+  model only emits pure candidates plus a dry-run preview.
+
+  ## Rule-1 provenance
+
+  No existing extension covers the Hetzner-invoice -> per-project-spend ->
+  Invoice Ninja expense-candidate domain: `swamp extension search` found only
+  `@swamp/hetzner-cloud` (infrastructure provisioning, unrelated) and
+  `@tagur/pdf` (generic platform-gated PDF->markdown, no Hetzner/per-project/
+  finops/expense-candidate domain). This is a genuine last-resort build; the
+  reused Invoice Ninja money-write is extended, not rebuilt (repo rule 2).
+
+license: MIT
+
+repository: https://github.com/shrugpw/swamp-hetzner-invoice
+
+additionalFiles:
+  - README.md
+  - LICENSE.txt
+
+models:
+  - hetzner_invoice.ts
+
+# Report paths resolve against the default base (extensions/reports/).
+reports:
+  - hetzner-spend.ts
+
+# Empty platforms == universal. Extracts PDF text via the bundled pure-JS unpdf
+# library (no host binaries shelled out), so it runs anywhere.
+platforms: []
+
+labels:
+  - hetzner-invoice
+  - finops
+  - expenses
+  - hetzner
