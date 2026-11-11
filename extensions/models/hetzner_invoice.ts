@@ -302,6 +302,26 @@ async function readOwnInvoices(
 // Model definition
 // ---------------------------------------------------------------------------
 
+/**
+ * The `@shrug/hetzner-invoice` behavior definition.
+ *
+ * Exposes three methods over two `infinite`-lifetime resources (`invoices`,
+ * `expenseCandidates`):
+ *
+ * - `parseInvoice` -- parse PDF bytes (inline base64, a filePath, or a resolved
+ *   source) into an `invoices` resource.
+ * - `ingestFile` -- parse a local PDF path (FileSource) into an `invoices`
+ *   resource, defaulting to `globalArguments.defaultFilePath`.
+ * - `buildExpenseCandidates` -- turn parsed invoice(s) into one BankTxn-shaped
+ *   `expenseCandidates` row per project plus the Mapping; USD-only (H1).
+ *
+ * Source-agnostic (FileSource / BytesSource now; ImapSource gated on pub-4) and
+ * write-safe: it NEVER POSTs. The single audited money-write stays
+ * `@shrug/invoiceninja.upsertExpenses` (itself dryRun default true). `dryRun`
+ * here only annotates the emitted `expenseCandidates` preview. See
+ * {@link GlobalArgsSchema} for the configurable attribution and currency-guard
+ * arguments.
+ */
 export const model = {
   type: "@shrug/hetzner-invoice",
   version: "2026.11.10.1",
